@@ -3,6 +3,12 @@ name: Deploy Web to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "README.md"
+      - ".gitignore"
+      - "render.yaml"
+      - "deploy/**"
   workflow_dispatch:
 
 permissions:

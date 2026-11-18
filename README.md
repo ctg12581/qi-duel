@@ -90,7 +90,7 @@ npm start          # 默认监听 8080
 >
 > 本地预览导出结果：`cd build/web && python -m http.server 8000`，浏览器开 `http://localhost:8000`。
 >
-> 若改用 Netlify / Cloudflare Pages 也可以，它们支持直接用 `deploy/web/_headers` 配响应头。
+> 也可以改用 Netlify / Cloudflare Pages，同样能自动从仓库部署，单线程构建不需要配任何响应头。
 
 ### 4. 填服务器地址
 
@@ -108,6 +108,5 @@ npm start          # 默认监听 8080
 - `server/`：Node.js 房间服务器
 - `export_presets.cfg`：Web 导出预设（单线程，无需跨域隔离头）
 - `.github/workflows/deploy-pages.yml`：push 后自动导出并发布到 GitHub Pages
-- `deploy/web/_headers`：改用 Netlify / Cloudflare Pages 时的跨域隔离头
 - `render.yaml`：Render 部署配置
 - `icon.svg`：项目图标
