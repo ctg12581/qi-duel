@@ -1,0 +1,16 @@
+{
+  "name": "qi-duel-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "气破 Q版 联机房间服务器（WebSocket 转发）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

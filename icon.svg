@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#BFE9FF"/>
+  <circle cx="42" cy="48" r="26" fill="#4EA8FF"/>
+  <circle cx="42" cy="52" r="21" fill="#FFE2C6"/>
+  <circle cx="35" cy="52" r="3" fill="#4A3A3A"/>
+  <circle cx="49" cy="52" r="3" fill="#4A3A3A"/>
+  <circle cx="86" cy="48" r="26" fill="#FF7FA5"/>
+  <circle cx="86" cy="52" r="21" fill="#FFE2C6"/>
+  <circle cx="79" cy="52" r="3" fill="#4A3A3A"/>
+  <circle cx="93" cy="52" r="3" fill="#4A3A3A"/>
+  <path d="M40 86 Q64 112 88 86" fill="none" stroke="#FFC94A" stroke-width="8" stroke-linecap="round"/>
+  <text x="64" y="118" text-anchor="middle" font-family="Microsoft YaHei" font-size="18" font-weight="bold" fill="#6B4B8A">气破</text>
+</svg>
