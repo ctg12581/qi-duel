@@ -19,7 +19,7 @@ const C_SKILL := Color("#b18cff")
 const C_HEART := Color("#ff6b81")
 
 ## 联机服务器地址（部署后改这里，或在联机界面直接填）
-const DEFAULT_SERVER := "ws://127.0.0.1:8080"
+const DEFAULT_SERVER := "wss://qi-duel-server.onrender.com"
 const NetClient := preload("res://scripts/net_client.gd")
 
 
@@ -499,13 +499,22 @@ func _ready() -> void:
 
 
 func _build_fonts() -> void:
-	var body := SystemFont.new()
-	body.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC"])
-	body.font_weight = 500
+	# 网页导出无法读取系统字体（SystemFont 在 Web 上会退回默认拉丁字体，
+	# 中文就会变成方框/乱码），因此这里优先使用项目内置的中文字体，
+	# 只有在字体文件缺失时才退回 SystemFont（桌面端兜底）。
+	var body: Font = load("res://fonts/NotoSansSC-Medium.ttf")
+	if body == null:
+		var fb := SystemFont.new()
+		fb.font_names = PackedStringArray(["Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC"])
+		fb.font_weight = 500
+		body = fb
 	_font_body = body
-	var title := SystemFont.new()
-	title.font_names = PackedStringArray(["YouYuan", "Microsoft YaHei UI", "Microsoft YaHei", "SimHei"])
-	title.font_weight = 700
+	var title: Font = load("res://fonts/NotoSansSC-Bold.ttf")
+	if title == null:
+		var ft := SystemFont.new()
+		ft.font_names = PackedStringArray(["YouYuan", "Microsoft YaHei UI", "Microsoft YaHei", "SimHei"])
+		ft.font_weight = 700
+		title = ft
 	_font_title = title
 
 
