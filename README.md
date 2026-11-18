@@ -72,12 +72,11 @@ npm start          # 默认监听 8080
 之后 push 即自动构建，站点地址：`https://ctg12581.github.io/qi-duel/`。
 （也可以在 Actions 页面手动点 `Run workflow`。）
 
-> 网页版是多线程导出，需要跨域隔离响应头。Godot 的 PWA 服务工作者已在预设里开启
-> （`ensure_cross_origin_isolation_headers`），会自动加上 `COOP/COEP`，所以 GitHub Pages
-> 这种不能自定义响应头的静态托管也能跑。
+> 网页版采用**单线程导出**（`variant/thread_support=false`），不需要 `SharedArrayBuffer`，
+> 也不需要任何跨域隔离响应头，GitHub Pages / itch.io 等纯静态托管都能直接跑。
+> 预设里还加了一小段脚本，会清掉旧版本遗留的 Service Worker 缓存在首次加载时造成的黑屏。
 >
-> 本地预览导出结果：`cd build/web && python -m http.server 8000`，浏览器开
-> `http://localhost:8000`（service worker 需要 localhost 或 https）。
+> 本地预览导出结果：`cd build/web && python -m http.server 8000`，浏览器开 `http://localhost:8000`。
 >
 > 若改用 Netlify / Cloudflare Pages 也可以，它们支持直接用 `deploy/web/_headers` 配响应头。
 
@@ -95,7 +94,7 @@ npm start          # 默认监听 8080
 - `scripts/main.gd`：界面、Q版角色绘制、回合逻辑、联机流程与音效
 - `scripts/net_client.gd`：WebSocket 客户端（建房 / 加入 / 收发射招）
 - `server/`：Node.js 房间服务器
-- `export_presets.cfg`：Web 导出预设（多线程 + PWA 跨域隔离）
+- `export_presets.cfg`：Web 导出预设（单线程，无需跨域隔离头）
 - `.github/workflows/deploy-pages.yml`：push 后自动导出并发布到 GitHub Pages
 - `deploy/web/_headers`：改用 Netlify / Cloudflare Pages 时的跨域隔离头
 - `render.yaml`：Render 部署配置
