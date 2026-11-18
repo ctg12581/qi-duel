@@ -59,17 +59,27 @@ npm start          # 默认监听 8080
 - 启动命令：`npm start`，构建命令：`npm install`。
 - 仓库里带了 `render.yaml`，在 Render 用 Blueprint 可直接识别。
 
-### 3. 导出网页客户端
+### 3. 网页客户端（自动部署到 GitHub Pages）
 
-1. Godot 编辑器：`编辑器 → 管理导出模板`，下载 **4.7 导出模板**。
-2. `项目 → 导出 → 添加 → Web`。
-3. 建议把 **Thread Support 关掉**（单线程导出），这样不需要 `SharedArrayBuffer`，
-   可以直接丢到 GitHub Pages / itch.io / 任意静态托管，无需特殊响应头。
-   若保留多线程，则托管方必须返回
-   `Cross-Origin-Opener-Policy: same-origin` 和
-   `Cross-Origin-Embedder-Policy: require-corp`（Netlify / Cloudflare Pages 可用
-   `deploy/web/_headers` 里那份配置）。
-4. 导出到 `build/web/index.html`，把整个 `build/web` 目录上传到静态托管即可。
+仓库里已经带了导出预设 `export_presets.cfg` 和 workflow `.github/workflows/deploy-pages.yml`，
+**不用手动导出上传**：每次 push 到 `main`，GitHub Actions 会自动用 Godot 4.7.2 导出网页并发布到 Pages。
+
+一次性设置：
+
+1. 打开仓库 `Settings → Pages`；
+2. `Build and deployment → Source` 选 **GitHub Actions**。
+
+之后 push 即自动构建，站点地址：`https://ctg12581.github.io/qi-duel/`。
+（也可以在 Actions 页面手动点 `Run workflow`。）
+
+> 网页版是多线程导出，需要跨域隔离响应头。Godot 的 PWA 服务工作者已在预设里开启
+> （`ensure_cross_origin_isolation_headers`），会自动加上 `COOP/COEP`，所以 GitHub Pages
+> 这种不能自定义响应头的静态托管也能跑。
+>
+> 本地预览导出结果：`cd build/web && python -m http.server 8000`，浏览器开
+> `http://localhost:8000`（service worker 需要 localhost 或 https）。
+>
+> 若改用 Netlify / Cloudflare Pages 也可以，它们支持直接用 `deploy/web/_headers` 配响应头。
 
 ### 4. 填服务器地址
 
@@ -85,6 +95,8 @@ npm start          # 默认监听 8080
 - `scripts/main.gd`：界面、Q版角色绘制、回合逻辑、联机流程与音效
 - `scripts/net_client.gd`：WebSocket 客户端（建房 / 加入 / 收发射招）
 - `server/`：Node.js 房间服务器
-- `deploy/web/_headers`：多线程网页导出时需要的跨域隔离头
+- `export_presets.cfg`：Web 导出预设（多线程 + PWA 跨域隔离）
+- `.github/workflows/deploy-pages.yml`：push 后自动导出并发布到 GitHub Pages
+- `deploy/web/_headers`：改用 Netlify / Cloudflare Pages 时的跨域隔离头
 - `render.yaml`：Render 部署配置
 - `icon.svg`：项目图标
