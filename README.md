@@ -59,6 +59,18 @@ npm start          # 默认监听 8080
 - 启动命令：`npm start`，构建命令：`npm install`。
 - 仓库里带了 `render.yaml`，在 Render 用 Blueprint 可直接识别。
 
+#### 免费实例保活（Render 会休眠）
+
+服务器提供健康检查接口，随便一个定时任务访问即可保活：
+
+- `GET https://<你的服务域名>/ping` → 返回 `{"ok":true,"rooms":0,"uptime_s":...}`
+- 也可以用 `/health`，根路径 `/` 也会返回 200。
+
+用 [cron-job.org](https://console.cron-job.org/jobs) 建一个 Job：
+- URL 填 `https://<你的服务域名>/ping`
+- 执行频率选 **每 10 分钟**（Render 免费实例约 15 分钟无请求就休眠）
+- 方法 GET 即可。
+
 ### 3. 网页客户端（自动部署到 GitHub Pages）
 
 仓库里已经带了导出预设 `export_presets.cfg` 和 workflow `.github/workflows/deploy-pages.yml`，

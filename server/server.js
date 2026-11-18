@@ -9,8 +9,27 @@ const http = require("http");
 const { WebSocketServer } = require("ws");
 
 const PORT = process.env.PORT || 8080;
+const startedAt = Date.now();
 
 const server = http.createServer((req, res) => {
+  const path = (req.url || "/").split("?")[0];
+  if (path === "/ping" || path === "/health") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(
+      JSON.stringify({
+        ok: true,
+        service: "qi-duel",
+        rooms: rooms.size,
+        uptime_s: Math.floor((Date.now() - startedAt) / 1000),
+        time: new Date().toISOString(),
+      })
+    );
+    return;
+  }
   res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("qi-duel ws server ok");
 });
