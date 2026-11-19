@@ -1,11 +1,16 @@
 extends Control
 ## 气破 · Q版 双人同屏回合制小游戏
-## 攻 / 防 / 聚气 / 破防，气大于护盾就能一击获胜。
+## 血/攻/防/气四维数值：聚气蓄力，把气分配给攻击或防御，普攻见血。
 
-const MAX_HEARTS := 3
+const MAX_HP := 10
+const MAX_ATK := 5
+const MAX_DEF := 3
 const MAX_QI := 5
-const MAX_SHIELD := 3
-const SKILL_COST := 3
+const BASE_ATK := 1
+const BASE_DEF := 1
+const BASE_QI := 1
+## 「防御」动作在本回合额外提供的防御值
+const DEFEND_BONUS := 2
 
 const C_TEXT := Color("#5d4a43")
 const C_MUTED := Color("#94827a")
@@ -124,16 +129,36 @@ class SkyBackground extends Control:
 class Chibi extends Control:
 	var index := 0
 	var accent := Color.WHITE
-	var hair := Color("#4a3834")
-	var outfit := Color.WHITE
-	var skin := Color("#ffe3c8")
+	var char_id := ""
 	var state := "idle"
 	var active := false
 	var _t := 0.0
+	var _tex: Texture2D = null
+	var _cache: Dictionary = {}
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		resized.connect(queue_redraw)
+		_tex = _pose_texture("idle")
+
+	func set_character(id: String) -> void:
+		char_id = id
+		_cache.clear()
+		_tex = _pose_texture("idle")
+		queue_redraw()
+
+	func _pose_texture(pose: String) -> Texture2D:
+		var key := char_id + "|" + pose
+		if _cache.has(key):
+			return _cache[key]
+		var path := "res://assets/characters/%s_%s.png" % [char_id, pose]
+		if not ResourceLoader.exists(path):
+			path = "res://assets/characters/%s_idle.png" % char_id
+		var tex: Texture2D = null
+		if ResourceLoader.exists(path):
+			tex = load(path)
+		_cache[key] = tex
+		return tex
 
 	func _process(delta: float) -> void:
 		_t += delta
@@ -141,6 +166,7 @@ class Chibi extends Control:
 
 	func play_state(s: String, dur: float = 0.45) -> void:
 		state = s
+		_tex = _pose_texture(s)
 		queue_redraw()
 		if dur > 0.0:
 			var tw := create_tween()
@@ -148,6 +174,7 @@ class Chibi extends Control:
 			tw.tween_callback(func() -> void:
 				if state == s:
 					state = "idle"
+					_tex = _pose_texture("idle")
 					queue_redraw()
 			)
 
@@ -157,80 +184,33 @@ class Chibi extends Control:
 		if w < 20.0 or h < 20.0:
 			return
 		var cx := w * 0.5
-		var ground := h * 0.92
-		var bob := sin(_t * 2.4 + float(index) * 1.7) * 3.0
+		var ground := h * 0.93
+		var bob := 0.0
+		if state == "idle" or state == "guard" or state == "charge":
+			bob = sin(_t * 2.4 + float(index) * 1.7) * 3.0
 		if active:
 			for i in range(5, 0, -1):
-				draw_circle(Vector2(cx, ground - 8.0), 54.0 + float(i) * 9.0, Color(accent.r, accent.g, accent.b, 0.016))
-			draw_arc(Vector2(cx, ground - 8.0), 68.0, 0.0, TAU, 48, Color(accent.r, accent.g, accent.b, 0.38), 2.0, true)
-			draw_circle(Vector2(cx, ground - 102.0 + bob), 4.0, Color(accent.r, accent.g, accent.b, 0.75))
-		_ellipse(Vector2(cx, ground), Vector2(62.0, 15.0), Color(0.18, 0.30, 0.18, 0.18))
-		var body_y := ground - 54.0 + bob
-		# 腿和鞋
-		draw_line(Vector2(cx - 15.0, body_y + 18.0), Vector2(cx - 19.0, ground - 8.0), Color("#5a463e"), 9.0, true)
-		draw_line(Vector2(cx + 15.0, body_y + 18.0), Vector2(cx + 19.0, ground - 8.0), Color("#5a463e"), 9.0, true)
-		draw_circle(Vector2(cx - 19.0, ground - 5.0), 9.0, Color("#7c5c50"))
-		draw_circle(Vector2(cx + 19.0, ground - 5.0), 9.0, Color("#7c5c50"))
-		# 身体
-		draw_circle(Vector2(cx, body_y - 8.0), 39.0, outfit)
-		draw_rect(Rect2(cx - 37.0, body_y - 8.0, 74.0, 34.0), outfit, true)
-		draw_circle(Vector2(cx, body_y + 4.0), 22.0, Color(1, 1, 1, 0.22))
-		# 手臂
-		draw_line(Vector2(cx - 30.0, body_y - 12.0), Vector2(cx - 48.0, body_y + 17.0), outfit, 12.0, true)
-		draw_line(Vector2(cx + 30.0, body_y - 12.0), Vector2(cx + 48.0, body_y + 17.0), outfit, 12.0, true)
-		draw_circle(Vector2(cx - 49.0, body_y + 20.0), 9.0, skin)
-		draw_circle(Vector2(cx + 49.0, body_y + 20.0), 9.0, skin)
-		# 头
-		var head := Vector2(cx, body_y - 88.0)
-		draw_circle(head + Vector2(0, -3), 68.0, hair)
-		draw_circle(head + Vector2(-58, 8), 14.0, hair)
-		draw_circle(head + Vector2(58, 8), 14.0, hair)
-		draw_circle(head + Vector2(0, 7), 58.0, skin)
-		# 刘海
-		draw_circle(head + Vector2(-31, -31), 23.0, hair)
-		draw_circle(head + Vector2(0, -37), 25.0, hair)
-		draw_circle(head + Vector2(31, -31), 23.0, hair)
-		# 发饰 / 头带
-		if index == 0:
-			draw_arc(head + Vector2(0, 0), 58.0, -2.70, -0.44, 32, accent, 9.0, true)
-			draw_circle(head + Vector2(52, -38), 7.0, accent.lightened(0.25))
-		else:
-			draw_circle(head + Vector2(-57, -52), 23.0, hair)
-			draw_circle(head + Vector2(57, -52), 23.0, hair)
-			draw_circle(head + Vector2(-57, -52), 7.0, accent)
-			draw_circle(head + Vector2(57, -52), 7.0, accent)
-		# 表情
-		if state == "hurt" or state == "lose":
-			_cross_eye(head + Vector2(-22, 6))
-			_cross_eye(head + Vector2(22, 6))
-			draw_circle(head + Vector2(0, 30), 7.0, Color("#7b3f3f"))
-		elif state == "win":
-			_happy_eye(head + Vector2(-22, 4))
-			_happy_eye(head + Vector2(22, 4))
-			draw_arc(head + Vector2(0, 23), 10.0, 0.12 + PI, 0.88 + PI, 16, Color("#6b4540"), 2.5, true)
-		else:
-			_normal_eye(head + Vector2(-22, 4))
-			_normal_eye(head + Vector2(22, 4))
-			if state == "attack" or state == "skill":
-				draw_line(head + Vector2(-35, -13), head + Vector2(-12, -8), Color("#6b4540"), 3.0, true)
-				draw_line(head + Vector2(35, -13), head + Vector2(12, -8), Color("#6b4540"), 3.0, true)
-				draw_circle(head + Vector2(0, 26), 6.0, Color("#7b3f3f"))
-			else:
-				draw_arc(head + Vector2(0, 23), 8.0, 0.15 * PI, 0.85 * PI, 14, Color("#6b4540"), 2.2, true)
-		draw_circle(head + Vector2(-39, 20), 8.0, Color(1.0, 0.45, 0.58, 0.35))
-		draw_circle(head + Vector2(39, 20), 8.0, Color(1.0, 0.45, 0.58, 0.35))
-
-	func _normal_eye(c: Vector2) -> void:
-		draw_circle(c, 8.5, Color("#3e2e2b"))
-		draw_circle(c + Vector2(-2.5, -2.8), 2.8, Color.WHITE)
-
-	func _cross_eye(c: Vector2) -> void:
-		draw_line(c + Vector2(-7, -7), c + Vector2(7, 7), Color("#3e2e2b"), 3.0, true)
-		draw_line(c + Vector2(7, -7), c + Vector2(-7, 7), Color("#3e2e2b"), 3.0, true)
-
-	func _happy_eye(c: Vector2) -> void:
-		draw_line(c + Vector2(-8, 4), c + Vector2(0, -4), Color("#3e2e2b"), 3.4, true)
-		draw_line(c + Vector2(0, -4), c + Vector2(8, 4), Color("#3e2e2b"), 3.4, true)
+				draw_circle(Vector2(cx, ground - 6.0), 54.0 + float(i) * 9.0, Color(accent.r, accent.g, accent.b, 0.016))
+			draw_arc(Vector2(cx, ground - 6.0), 68.0, 0.0, TAU, 48, Color(accent.r, accent.g, accent.b, 0.38), 2.0, true)
+		# 地面投影
+		_ellipse(Vector2(cx, ground), Vector2(56.0, 14.0), Color(0.18, 0.30, 0.18, 0.18))
+		if _tex == null:
+			return
+		# 宽高双约束等比缩放，底部对齐地面
+		var tw_ := float(_tex.get_width())
+		var th_ := float(_tex.get_height())
+		if tw_ <= 0.0 or th_ <= 0.0:
+			return
+		var max_w := w * 0.96
+		var max_h := h * 0.90
+		var sc := minf(max_w / tw_, max_h / th_)
+		var draw_w := tw_ * sc
+		var draw_h := th_ * sc
+		var pos := Vector2(cx - draw_w * 0.5, ground - draw_h + bob)
+		var mod := Color(1, 1, 1, 1)
+		if state == "hurt":
+			mod = Color(1.0, 0.68, 0.68, 1.0)
+		draw_texture_rect(_tex, Rect2(pos, Vector2(draw_w, draw_h)), false, mod)
 
 	func _ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 		var pts := PackedVector2Array()
@@ -260,15 +240,32 @@ class PipRow extends Control:
 			return
 		var spacing := minf(28.0, size.x / float(max_value))
 		var cy := size.y * 0.5
+		var fit := spacing * 0.44
 		for i in max_value:
 			var c := Vector2(spacing * 0.5 + float(i) * spacing, cy)
 			var filled := i < value
 			if kind == "heart":
-				_heart(c, 9.5, filled)
+				_heart(c, minf(9.5, fit), filled)
 			elif kind == "qi":
-				_orb(c, 8.5, filled)
+				_orb(c, minf(8.5, fit * 0.95), filled)
+			elif kind == "blade":
+				_blade(c, minf(8.5, fit * 0.95), filled)
 			else:
-				_shield(c, 9.0, filled)
+				_shield(c, minf(9.0, fit), filled)
+
+	func _blade(c: Vector2, s: float, filled: bool) -> void:
+		var pts := PackedVector2Array([
+			c + Vector2(0, -s),
+			c + Vector2(s * 0.78, s * 0.85),
+			c + Vector2(0, s * 0.45),
+			c + Vector2(-s * 0.78, s * 0.85),
+		])
+		if filled:
+			draw_colored_polygon(pts, accent)
+		else:
+			draw_colored_polygon(pts, Color(1, 1, 1, 0.55))
+			pts.append(pts[0])
+			draw_polyline(pts, Color(accent.r, accent.g, accent.b, 0.35), 1.5, true)
 
 	func _heart(c: Vector2, s: float, filled: bool) -> void:
 		var pts := PackedVector2Array()
@@ -405,9 +402,18 @@ class CuteAudio extends Node:
 # 数据与界面引用
 # ---------------------------------------------------------------------------
 var players: Array[Dictionary] = [
-	{"name": "小玄", "hp": MAX_HEARTS, "qi": 0, "shield": 0, "accent": C_P1},
-	{"name": "小赤", "hp": MAX_HEARTS, "qi": 0, "shield": 0, "accent": C_P2},
+	{"name": "Doro", "hp": MAX_HP, "atk": BASE_ATK, "def": BASE_DEF, "qi": BASE_QI, "accent": C_P1},
+	{"name": "鲸鱼娘", "hp": MAX_HP, "atk": BASE_ATK, "def": BASE_DEF, "qi": BASE_QI, "accent": C_P2},
 ]
+
+## 可选角色花名册（贴图：res://assets/characters/<id>_<状态>.png）
+var ROSTER: Array[Dictionary] = [
+	{"id": "doro", "name": "Doro", "desc": "粉毛呆萌小狗", "accent": Color("#ff9ec4")},
+	{"id": "guga", "name": "咕嘎", "desc": "企鹅装小可爱", "accent": Color("#6b7280")},
+	{"id": "whale", "name": "鲸鱼娘", "desc": "蓝发女仆大肥鱼", "accent": Color("#5b8cff")},
+]
+## 每个座位当前选中的角色 id（1P 默认 Doro，2P 默认鲸鱼娘）
+var picked: Array[String] = ["doro", "whale"]
 
 var current := 0
 var first_player := 0
@@ -418,12 +424,13 @@ var game_over := false
 var phase := "select"
 ## 本回合双方各自选定的招式，空串表示还没选
 var pending: Array[String] = ["", ""]
+## 本回合双方各自把多少「气」分配到攻击 / 防御（结算时一次性落实为永久加成）
+var turn_alloc: Array[Dictionary] = [{"atk": 0, "def": 0}, {"atk": 0, "def": 0}]
 
 ## hotseat：单机同屏；online：联网对战
 var mode := "hotseat"
-## 联机时本客户端控制哪一方（0=小玄，1=小赤）
+## 联机时本客户端控制哪一方（0=玩家1，1=玩家2）
 var my_seat := 0
-var room_code := ""
 var _net
 var _pending_net_cmd: Dictionary = {}
 var _my_rematch := false
@@ -432,8 +439,8 @@ var _result_status: Label
 var _result_rematch_btn: Button
 var _top_btn: Button
 var _lobby_status: Label
-var _lobby_server_edit: LineEdit
-var _lobby_code_edit: LineEdit
+var _lobby_rooms_box: VBoxContainer
+var _lobby_room_codes: Array[String] = []
 
 var _font_body: Font
 var _font_title: Font
@@ -441,11 +448,18 @@ var _audio: CuteAudio
 
 var _panels: Array[PanelContainer] = []
 var _active_tags: Array[Label] = []
-var _heart_rows: Array[PipRow] = []
+var _name_labels: Array[Label] = []
+var _pick_buttons: Array = []
+var _hp_rows: Array[PipRow] = []
+var _atk_rows: Array[PipRow] = []
+var _def_rows: Array[PipRow] = []
 var _qi_rows: Array[PipRow] = []
-var _shield_rows: Array[PipRow] = []
+var _stat_vals: Array[Dictionary] = []
 var _chibis: Array[Chibi] = []
 var _cards: Dictionary = {}
+var _alloc_atk_btn: Button
+var _alloc_def_btn: Button
+var _alloc_info: Label
 
 var _turn_panel: PanelContainer
 var _turn_label: Label
@@ -470,9 +484,14 @@ func _ready() -> void:
 	_build_header()
 	_panels.resize(2)
 	_active_tags.resize(2)
-	_heart_rows.resize(2)
+	_name_labels.resize(2)
+	_hp_rows.resize(2)
+	_atk_rows.resize(2)
+	_def_rows.resize(2)
 	_qi_rows.resize(2)
-	_shield_rows.resize(2)
+	_stat_vals.resize(2)
+	for i in 2:
+		_stat_vals[i] = {}
 	_chibis.resize(2)
 	_build_player_panel(0)
 	_build_player_panel(1)
@@ -535,7 +554,7 @@ func _build_header() -> void:
 	title.add_theme_constant_override("outline_size", 7)
 	add_child(title)
 
-	var sub := _label("各自选招 · 一起亮招结算 · 气 大 于 盾 就 破 防", 14, Color("#8a746a"))
+	var sub := _label("各自选招 · 一起结算 · 聚 气 化 攻 防", 14, Color("#8a746a"))
 	sub.position = Vector2(0, 58)
 	sub.size = Vector2(1280, 22)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -579,9 +598,10 @@ func _build_player_panel(idx: int) -> void:
 	top.add_theme_constant_override("separation", 8)
 	var name_label := _label(str(p["name"]), 28, accent, _font_title)
 	top.add_child(name_label)
-	var who := _label("玩家 %d" % (idx + 1), 12, C_MUTED)
-	who.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	top.add_child(who)
+	_name_labels[idx] = name_label
+	var seat_tag := _label("玩家%d" % (idx + 1), 11, C_MUTED)
+	seat_tag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(seat_tag)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(spacer)
@@ -594,25 +614,32 @@ func _build_player_panel(idx: int) -> void:
 	top.add_child(tag)
 	_active_tags[idx] = tag
 	vb.add_child(top)
-	vb.add_child(_stat_row("气血", "heart", C_HEART, idx, _heart_rows))
-	vb.add_child(_stat_row("气", "qi", C_CHARGE, idx, _qi_rows))
-	vb.add_child(_stat_row("护盾", "shield", C_DEFEND, idx, _shield_rows))
+	vb.add_child(_stat_row("气血", "heart", C_HEART, idx, "hp", _hp_rows, _stat_vals))
+	vb.add_child(_stat_row("攻击", "blade", C_ATTACK, idx, "atk", _atk_rows, _stat_vals))
+	vb.add_child(_stat_row("防御", "shield", C_DEFEND, idx, "def", _def_rows, _stat_vals))
+	vb.add_child(_stat_row("气", "qi", C_CHARGE, idx, "qi", _qi_rows, _stat_vals))
 
 
-func _stat_row(caption: String, kind: String, color: Color, idx: int, store: Array[PipRow]) -> Control:
+func _stat_row(caption: String, kind: String, color: Color, idx: int, key: String, pips_store: Array, val_store: Array) -> Control:
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 8)
-	var l := _label(caption, 13, C_MUTED)
-	l.custom_minimum_size = Vector2(36, 22)
+	h.add_theme_constant_override("separation", 6)
+	var l := _label(caption, 12, C_MUTED)
+	l.custom_minimum_size = Vector2(32, 20)
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(l)
 	var pips := PipRow.new()
 	pips.kind = kind
 	pips.accent = color
-	pips.custom_minimum_size = Vector2(0, 24)
+	pips.custom_minimum_size = Vector2(0, 20)
 	pips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(pips)
-	store[idx] = pips
+	pips_store[idx] = pips
+	var v := _label("0/0", 12, C_TEXT)
+	v.custom_minimum_size = Vector2(46, 20)
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	v.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(v)
+	val_store[idx][key] = v
 	return h
 
 
@@ -622,8 +649,7 @@ func _build_arena() -> void:
 	p1.size = Vector2(240, 300)
 	p1.index = 0
 	p1.accent = C_P1
-	p1.hair = Color("#3d4b66")
-	p1.outfit = Color("#8fd0ff")
+	p1.char_id = picked[0]
 	add_child(p1)
 	_chibis[0] = p1
 	var p2 := Chibi.new()
@@ -631,8 +657,7 @@ func _build_arena() -> void:
 	p2.size = Vector2(240, 300)
 	p2.index = 1
 	p2.accent = C_P2
-	p2.hair = Color("#5a3a48")
-	p2.outfit = Color("#ffc1d2")
+	p2.char_id = picked[1]
 	add_child(p2)
 	_chibis[1] = p2
 
@@ -653,7 +678,7 @@ func _build_arena() -> void:
 	tm.add_theme_constant_override("margin_left", 16)
 	tm.add_theme_constant_override("margin_right", 16)
 	_turn_panel.add_child(tm)
-	_turn_label = _label("轮到 小玄 出招！", 21, Color.WHITE, _font_title)
+	_turn_label = _label("准 备 出 招", 21, Color.WHITE, _font_title)
 	_turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_turn_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	tm.add_child(_turn_label)
@@ -661,8 +686,8 @@ func _build_arena() -> void:
 
 func _build_dock() -> void:
 	var dock := PanelContainer.new()
-	dock.position = Vector2(70, 520)
-	dock.size = Vector2(1140, 178)
+	dock.position = Vector2(70, 506)
+	dock.size = Vector2(1140, 200)
 	dock.add_theme_stylebox_override("panel", _flat(Color(1, 0.99, 0.95, 0.94), Color("#f0d9b5"), 2, 22))
 	add_child(dock)
 	var margin := MarginContainer.new()
@@ -680,22 +705,40 @@ func _build_dock() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
-	var hint := _label("鼠标点击  ·  键盘 1 / 2 / 3 / 4", 12, C_MUTED)
+	var hint := _label("鼠标点击  ·  键盘 1 / 2 / 3 出招，Q / E 加攻防", 12, C_MUTED)
 	head.add_child(hint)
 	vb.add_child(head)
+	# 气分配栏：把气换成永久攻击 / 防御加成
+	var alloc_row := HBoxContainer.new()
+	alloc_row.add_theme_constant_override("separation", 8)
+	var al := _label("分 配 气 ：", 13, C_MUTED)
+	al.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	alloc_row.add_child(al)
+	_alloc_info = _label("", 13, C_CHARGE)
+	_alloc_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	alloc_row.add_child(_alloc_info)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	alloc_row.add_child(sp2)
+	_alloc_atk_btn = _small_button("气 → 攻 +1", C_ATTACK)
+	_alloc_atk_btn.pressed.connect(func() -> void: _allocate("atk"))
+	alloc_row.add_child(_alloc_atk_btn)
+	_alloc_def_btn = _small_button("气 → 防 +1", C_DEFEND)
+	_alloc_def_btn.pressed.connect(func() -> void: _allocate("def"))
+	alloc_row.add_child(_alloc_def_btn)
+	vb.add_child(alloc_row)
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_theme_constant_override("separation", 10)
 	vb.add_child(row)
-	_add_card(row, "attack", "攻", "普通攻击", "打掉 1 颗心\n震散 1 点气", "无消耗", C_ATTACK, "1")
-	_add_card(row, "defend", "防", "抱盾防守", "护盾 +1\n最多 3 点", "无消耗", C_DEFEND, "2")
+	_add_card(row, "attack", "攻", "普通攻击", "伤害 = 攻击 − 对方防御\n最低 0", "无消耗", C_ATTACK, "1")
+	_add_card(row, "defend", "防", "防御姿态", "本回合 防御 +%d\n挡下普攻" % DEFEND_BONUS, "无消耗", C_DEFEND, "2")
 	_add_card(row, "charge", "聚", "聚气蓄力", "气 +1\n最多 5 点", "无消耗", C_CHARGE, "3")
-	_add_card(row, "skill", "破", "破防一击", "气 > 护盾\n直接获胜！", "需 3 气", C_SKILL, "4")
 
 
 func _add_card(row: HBoxContainer, kind: String, glyph: String, title: String, desc: String, cost: String, accent: Color, key: String) -> void:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 112)
+	b.custom_minimum_size = Vector2(0, 94)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -798,6 +841,8 @@ func _fade_in(ov: Control) -> void:
 
 func _show_mode_menu() -> void:
 	_clear_overlay()
+	_lobby_rooms_box = null
+	_lobby_status = null
 	mode = "hotseat"
 	game_over = false
 	phase = "menu"
@@ -832,7 +877,7 @@ func _show_mode_menu() -> void:
 	hot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	hot.pressed.connect(func() -> void:
 		_clear_overlay()
-		_start_hotseat()
+		_show_char_select("hotseat")
 	)
 	vb.add_child(hot)
 	var online := _big_button("联 网 对 战", C_P2)
@@ -840,6 +885,131 @@ func _show_mode_menu() -> void:
 	online.pressed.connect(_show_online_lobby)
 	vb.add_child(online)
 	_overlay_layer.add_child(ov)
+	_fade_in(ov)
+
+
+func _roster_entry(id: String) -> Dictionary:
+	for r in ROSTER:
+		if str(r["id"]) == id:
+			return r
+	return ROSTER[0]
+
+
+func _char_thumb(id: String) -> Texture2D:
+	var path := "res://assets/characters/%s_idle.png" % id
+	if ResourceLoader.exists(path):
+		return load(path)
+	return null
+
+
+func _apply_characters() -> void:
+	for i in 2:
+		var ch := _roster_entry(picked[i])
+		players[i]["name"] = str(ch["name"])
+		if i < _name_labels.size() and _name_labels[i] != null:
+			_name_labels[i].text = str(ch["name"])
+		if i < _chibis.size() and _chibis[i] != null:
+			_chibis[i].set_character(picked[i])
+	_update_ui()
+
+
+func _on_pick(seat: int, rid: String) -> void:
+	picked[seat] = rid
+	_refresh_pick_ui()
+
+
+func _refresh_pick_ui() -> void:
+	for e in _pick_buttons:
+		var on := str(e["rid"]) == picked[int(e["seat"])]
+		var b: Button = e["button"]
+		var acc: Color = _roster_entry(str(e["rid"]))["accent"]
+		b.add_theme_stylebox_override("normal", _card_style(acc, "hover" if on else "normal"))
+		b.add_theme_stylebox_override("hover", _card_style(acc, "hover"))
+		b.modulate = Color(1, 1, 1, 1) if on else Color(1, 1, 1, 0.62)
+
+
+func _show_char_select(next_mode: String) -> void:
+	_clear_overlay()
+	phase = "menu"
+	game_over = false
+	_update_ui()
+	_pick_buttons.clear()
+	var ov := _overlay_base(Color(1.0, 0.97, 0.90, 0.96))
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ov.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(840, 470)
+	card.add_theme_stylebox_override("panel", _panel_style(C_GOLD, true))
+	center.add_child(card)
+	var margin := _pad(card, 28, 28, 22, 22)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	margin.add_child(vb)
+	var title := _label("选 择 你 的 角 色", 32, Color("#6b4b8a"), _font_title)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	var sub := _label("两 位 玩 家 各 挑 一 个 萌 形 象", 14, C_MUTED)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(sub)
+	for seat in 2:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var sl := _label("玩家%d" % (seat + 1), 18, (C_P1 if seat == 0 else C_P2), _font_title)
+		sl.custom_minimum_size = Vector2(66, 0)
+		sl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(sl)
+		for r in ROSTER:
+			var bid := str(r["id"])
+			var b := Button.new()
+			b.custom_minimum_size = Vector2(0, 100)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.focus_mode = Control.FOCUS_NONE
+			b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			b.pressed.connect(_on_pick.bind(seat, bid))
+			var h := HBoxContainer.new()
+			h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			h.add_theme_constant_override("separation", 8)
+			var thumb := TextureRect.new()
+			thumb.texture = _char_thumb(bid)
+			thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			thumb.custom_minimum_size = Vector2(68, 68)
+			thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			h.add_child(thumb)
+			var tv := VBoxContainer.new()
+			tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tv.alignment = BoxContainer.ALIGNMENT_CENTER
+			var nm := _label(str(r["name"]), 18, C_TEXT, _font_title)
+			nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tv.add_child(nm)
+			var ds := _label(str(r["desc"]), 11, C_MUTED)
+			ds.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tv.add_child(ds)
+			h.add_child(tv)
+			b.add_child(h)
+			row.add_child(b)
+			_pick_buttons.append({"seat": seat, "rid": bid, "button": b})
+		vb.add_child(row)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 4)
+	vb.add_child(gap)
+	var go := _big_button("开 始 对 战", C_GOLD)
+	go.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	go.pressed.connect(func() -> void:
+		_clear_overlay()
+		_apply_characters()
+		if next_mode == "hotseat":
+			_start_hotseat()
+		else:
+			_show_online_lobby()
+	)
+	vb.add_child(go)
+	var back := _small_button("返 回", Color("#8a746a"))
+	back.pressed.connect(_show_mode_menu)
+	vb.add_child(back)
+	_overlay_layer.add_child(ov)
+	_refresh_pick_ui()
 	_fade_in(ov)
 
 
@@ -862,102 +1032,197 @@ func _show_online_lobby() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ov.add_child(center)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(540, 450)
+	card.custom_minimum_size = Vector2(560, 480)
 	card.add_theme_stylebox_override("panel", _panel_style(C_P2, true))
 	center.add_child(card)
-	var margin := _pad(card, 30, 30, 24, 24)
+	var margin := _pad(card, 28, 28, 20, 20)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
+	vb.add_theme_constant_override("separation", 9)
 	margin.add_child(vb)
 	var title := _label("联 网 对 战", 32, C_P2, _font_title)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
-	var hint := _label("一人点「创建房间」，把 4 位房间码发给朋友；\n朋友填好房间码点「加入」即可。", 13, C_MUTED)
+	var hint := _label("点「创建房间」开个房间等朋友；\n或者直接在下面的房间列表里点一下加入～", 13, C_MUTED)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(hint)
 
-	var srow := HBoxContainer.new()
-	srow.add_theme_constant_override("separation", 8)
-	var sl := _label("服务器", 13, C_MUTED)
-	sl.custom_minimum_size = Vector2(52, 0)
-	sl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	srow.add_child(sl)
-	_lobby_server_edit = LineEdit.new()
-	_lobby_server_edit.text = DEFAULT_SERVER
-	_lobby_server_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lobby_server_edit.custom_minimum_size = Vector2(0, 34)
-	srow.add_child(_lobby_server_edit)
-	vb.add_child(srow)
-
-	var create_btn := _big_button("创 建 房 间", C_P1)
-	create_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	create_btn.pressed.connect(_online_create)
-	vb.add_child(create_btn)
-
-	var jrow := HBoxContainer.new()
-	jrow.add_theme_constant_override("separation", 8)
-	_lobby_code_edit = LineEdit.new()
-	_lobby_code_edit.placeholder_text = "房间码"
-	_lobby_code_edit.max_length = 4
-	_lobby_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lobby_code_edit.custom_minimum_size = Vector2(0, 40)
-	_lobby_code_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	jrow.add_child(_lobby_code_edit)
-	var join_btn := _big_button("加 入 房 间", C_P2)
-	join_btn.custom_minimum_size = Vector2(150, 46)
-	join_btn.pressed.connect(func() -> void: _online_join(_lobby_code_edit.text))
-	jrow.add_child(join_btn)
-	vb.add_child(jrow)
-
-	_lobby_status = _label("", 13, Color("#8a746a"))
+	_lobby_status = _label("连接服务器中…", 13, Color("#8a746a"))
 	_lobby_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_lobby_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_lobby_status)
 
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 216)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+	_lobby_rooms_box = VBoxContainer.new()
+	_lobby_rooms_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_lobby_rooms_box.add_theme_constant_override("separation", 8)
+	scroll.add_child(_lobby_rooms_box)
+	_render_room_list([])
+
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	btns.add_theme_constant_override("separation", 12)
+	vb.add_child(btns)
+	var create_btn := _big_button("创 建 房 间", C_P1)
+	create_btn.pressed.connect(_online_create)
+	btns.add_child(create_btn)
+	var refresh_btn := _big_button("刷 新", Color("#b8c3cc"))
+	refresh_btn.pressed.connect(_lobby_refresh)
+	btns.add_child(refresh_btn)
+
 	var back := _small_button("返 回", Color("#8a746a"))
-	back.pressed.connect(_show_mode_menu)
+	back.pressed.connect(_leave_online_to_menu)
 	vb.add_child(back)
+	_overlay_layer.add_child(ov)
+	_fade_in(ov)
+	_lobby_connect()
+
+
+## 保证已经连上服务器并请求房间列表
+func _lobby_connect() -> void:
+	if _lobby_status != null and is_instance_valid(_lobby_status):
+		_lobby_status.text = "连接服务器中…"
+	_pending_net_cmd = {"t": "list"}
+	if _net.is_open():
+		_net.send_json({"t": "list"})
+		_pending_net_cmd = {}
+	else:
+		_net.connect_to(DEFAULT_SERVER)
+
+
+func _lobby_refresh() -> void:
+	if _net.is_open():
+		if _lobby_status != null and is_instance_valid(_lobby_status):
+			_lobby_status.text = "刷新中…"
+		_net.send_json({"t": "list"})
+	else:
+		_lobby_connect()
+
+
+## 渲染大厅房间列表；每个房间一行，点一下直接加入
+func _render_room_list(room_infos: Array) -> void:
+	if _lobby_rooms_box == null or not is_instance_valid(_lobby_rooms_box):
+		return
+	_lobby_room_codes.clear()
+	for c in _lobby_rooms_box.get_children():
+		_lobby_rooms_box.remove_child(c)
+		c.queue_free()
+	if room_infos.is_empty():
+		var empty := _label("暂时没有房间，点「创建房间」开一个吧～", 13, Color("#a89890"))
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty.custom_minimum_size = Vector2(0, 70)
+		_lobby_rooms_box.add_child(empty)
+		return
+	for i in room_infos.size():
+		var info: Dictionary = room_infos[i]
+		var code := str(info.get("code", ""))
+		var players_n := int(info.get("players", 1))
+		var cap := int(info.get("capacity", 2))
+		_lobby_room_codes.append(code)
+		var row := Button.new()
+		row.text = "房间 %d          %d/%d 人                  加入 ›" % [i + 1, players_n, cap]
+		row.custom_minimum_size = Vector2(0, 54)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.focus_mode = Control.FOCUS_NONE
+		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		row.add_theme_font_override("font", _font_title)
+		row.add_theme_font_size_override("font_size", 16)
+		row.add_theme_color_override("font_color", C_TEXT)
+		row.add_theme_color_override("font_hover_color", C_TEXT)
+		row.add_theme_stylebox_override("normal", _card_style(C_P1, "normal"))
+		row.add_theme_stylebox_override("hover", _card_style(C_P1, "hover"))
+		row.add_theme_stylebox_override("pressed", _card_style(C_P1, "pressed"))
+		row.pressed.connect(_online_join_code.bind(code))
+		_lobby_rooms_box.add_child(row)
+
+
+## 建房成功后的等待界面（不显示房间码，只等对手从列表加入）
+func _show_waiting_room() -> void:
+	_clear_overlay()
+	_lobby_rooms_box = null
+	_lobby_status = null
+	mode = "online"
+	phase = "menu"
+	var ov := _overlay_base(Color(1.0, 0.97, 0.90, 0.96))
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ov.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(470, 260)
+	card.add_theme_stylebox_override("panel", _panel_style(C_P1, true))
+	center.add_child(card)
+	var margin := _pad(card, 30, 30, 24, 24)
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 12)
+	margin.add_child(vb)
+	var title := _label("房 间 已 创 建", 26, C_P1, _font_title)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	var hint := _label("等待对手加入…\n对手在大厅的房间列表里点进来就能开局～", 14, C_MUTED)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hint)
+	var cancel := _small_button("取 消 并 返 回", Color("#8a746a"))
+	cancel.pressed.connect(_cancel_waiting_room)
+	vb.add_child(cancel)
 	_overlay_layer.add_child(ov)
 	_fade_in(ov)
 
 
-func _online_create() -> void:
-	if _lobby_status != null:
-		_lobby_status.text = "连接服务器中…"
-	_net_connect_then({"t": "create"})
-
-
-func _online_join(code: String) -> void:
-	var c := code.strip_edges().to_upper()
-	if c.length() < 4:
-		if _lobby_status != null:
-			_lobby_status.text = "请输入 4 位房间码"
-		return
-	if _lobby_status != null:
-		_lobby_status.text = "加入房间 %s …" % c
-	_net_connect_then({"t": "join", "room": c})
-
-
-func _net_connect_then(cmd: Dictionary) -> void:
-	_pending_net_cmd = cmd
-	var url := DEFAULT_SERVER
-	if _lobby_server_edit != null and _lobby_server_edit.text.strip_edges() != "":
-		url = _lobby_server_edit.text.strip_edges()
+func _cancel_waiting_room() -> void:
 	if _net.is_open():
-		_net.send_json(cmd)
+		_net.send_json({"t": "leave"})
+	_show_online_lobby()
+
+
+func _online_create() -> void:
+	if _lobby_status != null and is_instance_valid(_lobby_status):
+		_lobby_status.text = "正在创建房间…"
+	_pending_net_cmd = {"t": "create"}
+	if _net.is_open():
+		_net.send_json({"t": "create"})
 		_pending_net_cmd = {}
 	else:
-		_net.connect_to(url)
+		_net.connect_to(DEFAULT_SERVER)
+
+
+func _online_join_code(code: String) -> void:
+	if code == "":
+		return
+	if _lobby_status != null and is_instance_valid(_lobby_status):
+		_lobby_status.text = "正在加入房间…"
+	_pending_net_cmd = {"t": "join", "room": code}
+	if _net.is_open():
+		_net.send_json({"t": "join", "room": code})
+		_pending_net_cmd = {}
+	else:
+		_net.connect_to(DEFAULT_SERVER)
 
 
 func _on_net_connected() -> void:
 	if not _pending_net_cmd.is_empty():
 		_net.send_json(_pending_net_cmd)
 		_pending_net_cmd = {}
+	elif _lobby_rooms_box != null and is_instance_valid(_lobby_rooms_box):
+		_net.send_json({"t": "list"})
 
 
 func _on_net_disconnected() -> void:
+	if mode == "online" and phase == "menu" and _lobby_rooms_box != null and is_instance_valid(_lobby_rooms_box):
+		if _lobby_status != null and is_instance_valid(_lobby_status):
+			_lobby_status.text = "连接断开，点「刷新」重连"
+		_render_room_list([])
+		return
+	if mode == "online" and phase == "menu":
+		_show_notice("与服务器断开连接", "返回大厅", _leave_online_to_menu)
+		return
 	if mode == "online" and phase != "menu" and not game_over:
 		_online_peer_left()
 
@@ -965,22 +1230,32 @@ func _on_net_disconnected() -> void:
 func _on_net_message(d: Dictionary) -> void:
 	var t := str(d.get("t", ""))
 	match t:
+		"rooms":
+			if _lobby_rooms_box != null and is_instance_valid(_lobby_rooms_box):
+				var room_infos: Array = d.get("rooms", [])
+				_render_room_list(room_infos)
+				if _lobby_status != null and is_instance_valid(_lobby_status):
+					if room_infos.is_empty():
+						_lobby_status.text = "暂时没有房间，点「创建房间」开一个吧～"
+					else:
+						_lobby_status.text = "在线房间 %d 个，点一下直接加入" % room_infos.size()
 		"created":
-			room_code = str(d.get("room", ""))
-			if _lobby_status != null:
-				_lobby_status.text = "房间码：%s\n把房间码发给朋友，等待加入…" % room_code
+			_show_waiting_room()
 		"start":
-			room_code = str(d.get("room", room_code))
 			_start_online_match(int(d.get("seat", 0)))
 		"action":
 			if not game_over:
-				pending[1 - my_seat] = str(d.get("action", ""))
+				var opp := 1 - my_seat
+				pending[opp] = str(d.get("action", ""))
+				var oa: Dictionary = turn_alloc[opp]
+				oa["atk"] = int(d.get("atk_add", 0))
+				oa["def"] = int(d.get("def_add", 0))
 				if phase == "select" or phase == "waiting":
 					if str(pending[my_seat]) != "":
 						_start_resolve()
 					else:
 						_update_ui()
-				# reveal / resolve 期间提前到达的招式先留在 pending，下一回合再用
+				# reveal / resolve 期间提前到达的招式与分配先留在 pending / turn_alloc，下一回合再用
 		"rematch":
 			_opp_rematch = true
 			if _my_rematch:
@@ -996,7 +1271,12 @@ func _on_net_message(d: Dictionary) -> void:
 
 func _start_online_match(seat: int) -> void:
 	mode = "online"
+	_lobby_rooms_box = null
+	_lobby_status = null
 	my_seat = seat
+	picked[0] = "doro"
+	picked[1] = "whale"
+	_apply_characters()
 	round_no = 1
 	resolving = false
 	game_over = false
@@ -1006,10 +1286,12 @@ func _start_online_match(seat: int) -> void:
 	_result_rematch_btn = null
 	pending = ["", ""]
 	for i in 2:
-		players[i]["hp"] = MAX_HEARTS
-		players[i]["qi"] = 0
-		players[i]["shield"] = 0
+		players[i]["hp"] = MAX_HP
+		players[i]["atk"] = BASE_ATK
+		players[i]["def"] = BASE_DEF
+		players[i]["qi"] = BASE_QI
 		_chibis[i].play_state("idle", 0)
+	turn_alloc = [{"atk": 0, "def": 0}, {"atk": 0, "def": 0}]
 	_clear_fx()
 	_clear_overlay()
 	if _top_btn != null:
@@ -1031,13 +1313,20 @@ func _online_peer_left() -> void:
 		return
 	game_over = true
 	phase = "over"
-	_show_notice("对手已离开或掉线", "返回大厅", _leave_online_to_menu)
+	_show_notice("对手已离开或掉线", "返回大厅", _back_to_online_lobby)
 
 
 func _leave_online_to_menu() -> void:
 	if _net != null:
 		_net.close()
 	_show_mode_menu()
+
+
+## 离开当前房间，回到大厅房间列表（保持连接，直接刷新列表）
+func _back_to_online_lobby() -> void:
+	if _net != null and _net.is_open():
+		_net.send_json({"t": "leave"})
+	_show_online_lobby()
 
 
 func _request_rematch() -> void:
@@ -1082,16 +1371,12 @@ func _show_notice(text: String, btn_text: String, cb: Callable) -> void:
 func _request_action(kind: String) -> void:
 	if game_over or phase != "select":
 		return
-	# 联机：只控制自己这一方，选完把招式发给服务器，等对手的招一起结算
+	# 联机：只控制自己这一方，选完把招式（含本回合气分配）发给服务器，等对手一起结算
 	if mode == "online":
-		var me: Dictionary = players[my_seat]
-		if kind == "skill" and int(me["qi"]) < SKILL_COST:
-			_audio.play("error")
-			_bounce(_chibis[my_seat])
-			return
 		_audio.play("click")
 		pending[my_seat] = kind
-		_net.send_json({"t": "action", "action": kind})
+		var a: Dictionary = turn_alloc[my_seat]
+		_net.send_json({"t": "action", "action": kind, "atk_add": int(a["atk"]), "def_add": int(a["def"])})
 		if str(pending[0]) != "" and str(pending[1]) != "":
 			_start_resolve()
 		else:
@@ -1099,11 +1384,6 @@ func _request_action(kind: String) -> void:
 			_update_ui()
 		return
 	# 单机同屏
-	var p: Dictionary = players[current]
-	if kind == "skill" and int(p["qi"]) < SKILL_COST:
-		_audio.play("error")
-		_bounce(_chibis[current])
-		return
 	_audio.play("click")
 	pending[current] = kind
 	if str(pending[0]) == "" or str(pending[1]) == "":
@@ -1113,11 +1393,39 @@ func _request_action(kind: String) -> void:
 		_start_resolve()
 
 
+## 把 1 点气分配给攻击或防御（结算时一次性落实为永久加成）
+func _allocate(stat: String) -> void:
+	if game_over or phase != "select":
+		return
+	var seat := my_seat if mode == "online" else current
+	var p: Dictionary = players[seat]
+	var a: Dictionary = turn_alloc[seat]
+	var avail := int(p["qi"]) - (int(a["atk"]) + int(a["def"]))
+	if avail <= 0:
+		_audio.play("error")
+		return
+	if stat == "atk":
+		if int(p["atk"]) + int(a["atk"]) >= MAX_ATK:
+			_audio.play("error")
+			return
+		a["atk"] = int(a["atk"]) + 1
+	else:
+		if int(p["def"]) + int(a["def"]) >= MAX_DEF:
+			_audio.play("error")
+			return
+		a["def"] = int(a["def"]) + 1
+	_audio.play("click")
+	_bounce(_chibis[seat])
+	_update_ui()
+
+
 func _start_resolve() -> void:
-	# 先把本回合双方招式快照下来并清空 pending，
-	# 这样结算动画期间对手提前发来的下一回合招式不会误触发第二次结算。
+	# 先把本回合双方招式与气分配快照下来并清空 pending，
+	# 这样结算动画期间对手提前发来的下一回合数据不会误触发第二次结算。
 	var acts: Array[String] = [str(pending[0]), str(pending[1])]
+	var alloc: Array = [turn_alloc[0].duplicate(), turn_alloc[1].duplicate()]
 	pending = ["", ""]
+	turn_alloc = [{"atk": 0, "def": 0}, {"atk": 0, "def": 0}]
 	phase = "reveal"
 	resolving = true
 	_refresh_buttons()
@@ -1128,30 +1436,40 @@ func _start_resolve() -> void:
 	]
 	_audio.play("click")
 	await get_tree().create_timer(0.95).timeout
-	await _resolve_round(acts)
+	await _resolve_round(acts, alloc)
 
 
-## 同时结算：先聚气/加盾，再破防，再普攻，最后一起结算伤害。
-func _resolve_round(acts: Array) -> void:
+## 同时结算：先落实气分配，再聚气/防御，最后普攻，伤害同时落地。
+func _resolve_round(acts: Array, alloc: Array) -> void:
 	phase = "resolve"
-	var spent := [0, 0]
-	for i in 2:
-		if str(acts[i]) == "skill":
-			spent[i] = int(players[i]["qi"])
 
-	# 1) 聚气与防守先生效（同一回合内就能挡下攻击 / 提升破防门槛）
+	# 1) 落实本回合的气分配（永久 +攻 / +防，并扣掉对应的气）
+	for i in 2:
+		var a: Dictionary = alloc[i]
+		var add_atk := int(a.get("atk", 0))
+		var add_def := int(a.get("def", 0))
+		if add_atk == 0 and add_def == 0:
+			continue
+		var pl: Dictionary = players[i]
+		pl["atk"] = mini(MAX_ATK, int(pl["atk"]) + add_atk)
+		pl["def"] = mini(MAX_DEF, int(pl["def"]) + add_def)
+		pl["qi"] = maxi(0, int(pl["qi"]) - add_atk - add_def)
+		if add_atk > 0:
+			_float_on(i, "攻 +%d" % add_atk, C_ATTACK, 22)
+		if add_def > 0:
+			_float_on(i, "防 +%d" % add_def, C_DEFEND, 22)
+		_audio.play("charge")
+	_update_ui()
+	await get_tree().create_timer(0.3).timeout
+
+	# 2) 聚气 / 防御姿态
 	for i in 2:
 		var p: Dictionary = players[i]
 		match str(acts[i]):
 			"defend":
-				var gain := mini(1, MAX_SHIELD - int(p["shield"]))
-				p["shield"] = int(p["shield"]) + gain
 				_chibis[i].play_state("guard", 0.38)
 				_bounce(_chibis[i])
-				if gain > 0:
-					_float_on(i, "+%d 护盾" % gain, C_DEFEND, 24)
-				else:
-					_float_on(i, "护盾满啦！", C_DEFEND, 18)
+				_float_on(i, "防 +%d" % DEFEND_BONUS, C_DEFEND, 22)
 				_audio.play("guard")
 			"charge":
 				var gain := mini(1, MAX_QI - int(p["qi"]))
@@ -1163,68 +1481,39 @@ func _resolve_round(acts: Array) -> void:
 				else:
 					_float_on(i, "气满啦！", C_CHARGE, 18)
 				_audio.play("charge")
-	# 破防消耗全部气（威力在选招时已锁定）
-	for i in 2:
-		if str(acts[i]) == "skill":
-			players[i]["qi"] = 0
 	_update_ui()
-	await get_tree().create_timer(0.42).timeout
+	await get_tree().create_timer(0.45).timeout
 
-	var dmg := [0, 0]
-	var instant: Array[bool] = [false, false]
-
-	# 2) 破防：气 > 对手当前护盾 → 直接击败；否则碎盾并打掉 1 颗心
+	# 3) 本回合有效防御（防御动作额外 +DEFEND_BONUS）
+	var eff_def := [0, 0]
 	for i in 2:
-		if str(acts[i]) != "skill":
-			continue
-		var foe := 1 - i
-		var s := int(spent[i])
-		var fsh := int(players[foe]["shield"])
-		var pcol: Color = players[i]["accent"]
-		_chibis[i].play_state("skill", 0.55)
-		if s > fsh:
-			instant[i] = true
-			_chibis[foe].play_state("hurt", 1.0)
-			_skill_effect(pcol, "破 防！", foe)
-			_audio.play("skill")
-		else:
-			players[foe]["shield"] = 0
-			dmg[foe] += 1
-			_chibis[foe].play_state("hurt", 0.7)
-			_skill_effect(pcol, "盾碎！", foe)
-			_audio.play("hit")
-	await get_tree().create_timer(0.5).timeout
+		eff_def[i] = int(players[i]["def"]) + (DEFEND_BONUS if str(acts[i]) == "defend" else 0)
 
-	# 3) 普攻：对手还有护盾就挡下，否则掉 1 心并震散 1 气
+	# 4) 普攻：伤害 = 攻 − 对方有效防御，最低 0
+	var dmg := [0, 0]
 	for i in 2:
 		if str(acts[i]) != "attack":
 			continue
 		var foe := 1 - i
 		_lunge(i)
-		if int(players[foe]["shield"]) > 0:
-			players[foe]["shield"] = int(players[foe]["shield"]) - 1
-			_chibis[foe].play_state("hurt", 0.42)
+		_chibis[i].play_state("attack", 0.4)
+		var d := maxi(0, int(players[i]["atk"]) - int(eff_def[foe]))
+		dmg[foe] += d
+		if d > 0:
+			_float_on(foe, "-%d" % d, C_HEART, 30)
+			_audio.play("hit")
+		else:
 			_float_on(foe, "挡住啦！", C_DEFEND, 20)
 			_audio.play("guard")
-		else:
-			dmg[foe] += 1
-			_chibis[foe].play_state("hurt", 0.55)
-			_shake(_chibis[foe])
-			_float_on(foe, "-1 ♥", C_HEART, 30)
-			_audio.play("hit")
-			if int(players[foe]["qi"]) > 0:
-				players[foe]["qi"] = int(players[foe]["qi"]) - 1
-				_float_on(foe, "-1 气", C_CHARGE, 18, 40.0)
 
-	# 4) 伤害同时落地（可能同归于尽）
+	# 5) 伤害同时落地（可能同归于尽）
 	for i in 2:
 		if int(dmg[i]) > 0:
 			players[i]["hp"] = maxi(0, int(players[i]["hp"]) - int(dmg[i]))
-	for i in 2:
-		if instant[i]:
-			players[1 - i]["hp"] = 0
+			_chibis[i].play_state("hurt", 0.55)
+			_shake(_chibis[i])
 	_update_ui()
-	await get_tree().create_timer(0.78).timeout
+	await get_tree().create_timer(0.75).timeout
 
 	var dead0 := int(players[0]["hp"]) <= 0
 	var dead1 := int(players[1]["hp"]) <= 0
@@ -1232,9 +1521,9 @@ func _resolve_round(acts: Array) -> void:
 		if dead0 and dead1:
 			await _finish_round(-1, "两败俱伤，谁也讨不到好！")
 		elif dead1:
-			await _finish_round(0, _reason_for(0, instant))
+			await _finish_round(0, _reason_for(0))
 		else:
-			await _finish_round(1, _reason_for(1, instant))
+			await _finish_round(1, _reason_for(1))
 		return
 	round_no += 1
 	resolving = false
@@ -1249,10 +1538,8 @@ func _after_round() -> void:
 		_begin_round()
 
 
-func _reason_for(winner: int, instant: Array) -> String:
-	if bool(instant[winner]):
-		return "气大于盾，破防成功！"
-	return "%s 的气血用完了！" % str(players[1 - winner]["name"])
+func _reason_for(winner: int) -> String:
+	return "把 %s 的气血打空了！" % str(players[1 - winner]["name"])
 
 
 ## 每回合开始：交替谁先选招（同时也让设备自然交接），先遮挡再选。
@@ -1323,9 +1610,9 @@ func _show_handoff(next_idx: int) -> void:
 func _action_name(kind: String) -> String:
 	match kind:
 		"attack": return "攻击"
-		"defend": return "防守"
+		"defend": return "防御"
 		"charge": return "聚气"
-		_: return "破防"
+		_: return "？"
 
 
 func _finish_round(winner: int, reason: String) -> void:
@@ -1353,10 +1640,12 @@ func _reset_game(toggle_first: bool) -> void:
 	game_over = false
 	pending = ["", ""]
 	for i in 2:
-		players[i]["hp"] = MAX_HEARTS
-		players[i]["qi"] = 0
-		players[i]["shield"] = 0
+		players[i]["hp"] = MAX_HP
+		players[i]["atk"] = BASE_ATK
+		players[i]["def"] = BASE_DEF
+		players[i]["qi"] = BASE_QI
 		_chibis[i].play_state("idle", 0)
+	turn_alloc = [{"atk": 0, "def": 0}, {"atk": 0, "def": 0}]
 	for c in _fx_layer.get_children() if _fx_layer != null else []:
 		c.queue_free()
 	for c in _overlay_layer.get_children() if _overlay_layer != null else []:
@@ -1383,9 +1672,21 @@ func _update_ui() -> void:
 	for i in 2:
 		var p: Dictionary = players[i]
 		var accent: Color = p["accent"]
-		_heart_rows[i].set_data(int(p["hp"]), MAX_HEARTS)
-		_qi_rows[i].set_data(int(p["qi"]), MAX_QI)
-		_shield_rows[i].set_data(int(p["shield"]), MAX_SHIELD)
+		# 只在“当前操作方”的面板上预览本回合已分配的气，避免提前暴露对手的加點
+		var a: Dictionary = turn_alloc[i] if i == local_idx else {"atk": 0, "def": 0}
+		var spent := int(a["atk"]) + int(a["def"])
+		var hp := int(p["hp"])
+		var atk := int(p["atk"]) + int(a["atk"])
+		var dfn := int(p["def"]) + int(a["def"])
+		var qi := maxi(0, int(p["qi"]) - spent)
+		_hp_rows[i].set_data(hp, MAX_HP)
+		_atk_rows[i].set_data(atk, MAX_ATK)
+		_def_rows[i].set_data(dfn, MAX_DEF)
+		_qi_rows[i].set_data(qi, MAX_QI)
+		_stat_vals[i]["hp"].text = "%d/%d" % [hp, MAX_HP]
+		_stat_vals[i]["atk"].text = "%d/%d" % [atk, MAX_ATK]
+		_stat_vals[i]["def"].text = "%d/%d" % [dfn, MAX_DEF]
+		_stat_vals[i]["qi"].text = "%d/%d" % [qi, MAX_QI]
 		_active_tags[i].visible = (i == local_idx and selecting)
 		_panels[i].add_theme_stylebox_override("panel", _panel_style(accent, i == local_idx and selecting))
 		_chibis[i].active = i == local_idx and selecting
@@ -1416,26 +1717,31 @@ func _update_ui() -> void:
 
 
 func _refresh_buttons() -> void:
-	if _cards.is_empty():
-		return
-	var cp: Dictionary = players[current]
-	var can_skill := int(cp["qi"]) >= SKILL_COST
-	for kind in _cards.keys():
-		var c: Dictionary = _cards[kind]
-		var b: Button = c["button"]
-		var enabled := phase == "select" and not game_over
-		if kind == "skill":
-			enabled = enabled and can_skill
-		b.disabled = not enabled
-		var alpha := 1.0 if enabled else 0.48
-		for key in ["title", "desc", "icon"]:
-			var node: Control = c[key]
-			node.modulate = Color(1, 1, 1, alpha)
-		var cost_label: Label = c["cost"]
-		if kind == "skill":
-			cost_label.text = "可以发动！" if can_skill else "需 3 气"
-			cost_label.add_theme_color_override("font_color", C_SKILL if can_skill else Color("#b7aaa2"))
-		cost_label.modulate = Color(1, 1, 1, alpha)
+	var seat := my_seat if mode == "online" else current
+	var can_pick := phase == "select" and not game_over
+	if not _cards.is_empty():
+		for kind in _cards.keys():
+			var c: Dictionary = _cards[kind]
+			var b: Button = c["button"]
+			b.disabled = not can_pick
+			var alpha := 1.0 if can_pick else 0.48
+			for key in ["title", "desc", "icon"]:
+				var node: Control = c[key]
+				node.modulate = Color(1, 1, 1, alpha)
+			var cost_label: Label = c["cost"]
+			cost_label.modulate = Color(1, 1, 1, alpha)
+	# 气分配按钮
+	var p: Dictionary = players[seat]
+	var a: Dictionary = turn_alloc[seat]
+	var avail := int(p["qi"]) - (int(a["atk"]) + int(a["def"]))
+	if _alloc_info != null:
+		_alloc_info.text = "剩余气 %d（可换成永久攻 / 防）" % maxi(0, avail)
+	if _alloc_atk_btn != null:
+		var atk_ok := can_pick and avail > 0 and int(p["atk"]) + int(a["atk"]) < MAX_ATK
+		_alloc_atk_btn.disabled = not atk_ok
+	if _alloc_def_btn != null:
+		var def_ok := can_pick and avail > 0 and int(p["def"]) + int(a["def"]) < MAX_DEF
+		_alloc_def_btn.disabled = not def_ok
 
 
 # ---------------------------------------------------------------------------
@@ -1564,10 +1870,16 @@ func _show_result(winner: int, reason: String) -> void:
 	var why := _label(reason, 16, C_MUTED)
 	why.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(why)
-	var stat_text := "小玄 ♥ %d  气 %d  盾 %d      小赤 ♥ %d  气 %d  盾 %d" % [
-		int(players[0]["hp"]), int(players[0]["qi"]), int(players[0]["shield"]),
-		int(players[1]["hp"]), int(players[1]["qi"]), int(players[1]["shield"])
-	] if draw else "♥ %d    气 %d    盾 %d" % [int(players[winner]["hp"]), int(players[winner]["qi"]), int(players[winner]["shield"])]
+	var stat_text := ""
+	if draw:
+		stat_text = "%s  血%d 攻%d 防%d 气%d        %s  血%d 攻%d 防%d 气%d" % [
+			str(players[0]["name"]), int(players[0]["hp"]), int(players[0]["atk"]), int(players[0]["def"]), int(players[0]["qi"]),
+			str(players[1]["name"]), int(players[1]["hp"]), int(players[1]["atk"]), int(players[1]["def"]), int(players[1]["qi"])
+		]
+	else:
+		stat_text = "血 %d   攻 %d   防 %d   气 %d" % [
+			int(players[winner]["hp"]), int(players[winner]["atk"]), int(players[winner]["def"]), int(players[winner]["qi"])
+		]
 	var stats := _label(stat_text, 15, C_TEXT)
 	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(stats)
@@ -1586,7 +1898,7 @@ func _show_result(winner: int, reason: String) -> void:
 		_result_rematch_btn.pressed.connect(_request_rematch)
 		btns.add_child(_result_rematch_btn)
 		var lobby := _big_button("返 回 大 厅", Color("#b8c3cc"))
-		lobby.pressed.connect(_leave_online_to_menu)
+		lobby.pressed.connect(_back_to_online_lobby)
 		btns.add_child(lobby)
 	else:
 		var again := _big_button("再 来 一 局", C_GOLD)
@@ -1624,7 +1936,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_1: _request_action("attack")
 			KEY_2: _request_action("defend")
 			KEY_3: _request_action("charge")
-			KEY_4: _request_action("skill")
+			KEY_Q: _allocate("atk")
+			KEY_E: _allocate("def")
 
 
 # ---------------------------------------------------------------------------
